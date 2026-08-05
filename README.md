@@ -7,61 +7,74 @@
    —— 赛博禅意 · Cyber Zen ——
 ```
 
-> 一只透明、无边框、永远置顶的桌面小猫。
-> A transparent, frameless, always-on-top desktop kitten.
+> 一只透明、无边框、永远置顶、会感知环境、会说台词、会换皮肤的桌面小猫。
+> A transparent, frameless, always-on-top desktop kitten with senses, words, and skins.
 >
 > 传说桌面上有猫，月薪会翻倍——纯属玄学，但值得一试。喵。
-> Legend says a cat on your desktop doubles your salary — pure superstition, but worth a try. Meow.
+
+## 🏷️ v1.1 — Sensory Evolution
+
+感官进化版：从「一只会动的猫」进化为「一只懂你的猫」。
 
 这不是代码，这是 **Vibe Coding 的实践**：DeepSeek 当大脑，Codex 当双手，而你是导演。
-This is **Vibe Coding in practice**: DeepSeek as the brain, Codex as the hands, and you as the director.
 
 ---
 
 ## ✨ 功能亮点 / Features
 
-- 🪟 **透明无边框** — Frameless translucent window
-- 🖱️ **鼠标拽动** — Drag the cat anywhere with the left mouse button
-- 📌 **始终置顶** — Always on top
-- 🎨 **完美抠图算法** — R+G+B threshold + flood fill + mask erosion, zero white fringes
-- ⚡ **秒开帧缓存** — Offline pre-processed transparent PNG frames for instant startup
+- 🧠 **环境感知系统** — 实时监控 CPU 负载、自动识别 VS Code 办公状态
+  （psutil + pygetwindow + pynput 三件套）
+- 🤖 **智能状态机** — 支持 `IDLE` / `WORKING` / `ALERT` / `FOLLOWING`
+  四种行为逻辑，按优先级自动切换
+- 🖼️ **视觉归一化** — 独创「肉身识别」算法：自动裁切 GIF 空白边缘，
+  统一猫咪大小，所有猫脚踩同一条地平线
+- 💬 **零成本互动** — 本地化语料库气泡，不联网不花钱，随状态弹台词
+- 🪟 **透明无边框** — Frameless translucent window, always on top
+- 🎨 **Alpha Mask 抠图** — 亮度掩码 + 边缘侵蚀 + 全像素平滑，无白边
+- ⚡ **秒开帧缓存** — 离线预抠透明 PNG 帧，启动与切皮肤秒开
+
+---
+
+## 🧠 环境感知 / Sensing
+
+程序每秒执行一次心跳感知，按优先级判定状态：
+
+| 状态 | 触发条件 | 视觉表现 |
+| --- | --- | --- |
+| ALERT | CPU > 80% | 红色滤镜 + 窗口随机震动 |
+| FOLLOWING | 左键拎起猫咪 | 拖拽跟随 + 拎起台词 |
+| WORKING | VS Code 前台 + 30 秒内有输入 | 半透明呼吸 + Coding 气泡 |
+| IDLE | 默认 | 发呆 + 随机台词 |
+
+---
+
+## 🖼️ 视觉归一化 / Auto-Crop
+
+每帧扫描非透明像素的最小矩形（Auto-Crop，忽略空白/透明区），
+再把猫身等比例缩放到统一高度 `180px`（宽度按比例自适应），
+水平居中、底部对齐——四只猫个头整齐，像排队领工资。
+
+---
 
 ## 📖 视觉进化之夜 / The Night of Visual Evolution
 
-这是一只猫咪一夜之间从「白边廉价感」进化到「完美透明」的故事。
-This is the story of a kitten evolving overnight, from cheap white fringes to perfect transparency.
-
 ### 0x00 · 白边猫咪 / The White-Bordered Cat
 
-`cat.gif` 自带白底、灰边描边和抗锯齿毛边。最初只用一个朴素阈值：
-`R+G+B > 700 强制全透明`。猫是透明了，但残留的浅色毛边像一圈光晕——廉价的抠图感扑面而来。
+早期只用一个朴素阈值 `R+G+B > 700 强制全透明`。猫是透明了，
+但残留的浅色毛边像一圈廉价光晕。
 
-The GIF ships with a white background, gray outline, and anti-aliased fur edges.
-The first naive attempt used a single hard threshold: `R+G+B > 700 → fully transparent`.
-The cat became see-through, but the leftover light fringes looked like a cheap halo.
+### 0x01 · Alpha Mask 抠图 / Alpha Mask Keying
 
-### 0x01 · 泛洪抠底 / Flood-Fill Keying
+亮度 > 235 的像素直接进 Alpha Mask 变透明；被猫完全包围的白毛
+靠「填洞」保留；1px 边缘侵蚀裁掉浅色/半透明残边；两圈软 Alpha
+平滑羽化，让猫像「长」在任意背景上。
 
-从图片四边播种 **flood fill**，吃掉所有与边缘连通的白色与灰边背景；再用「填洞」把被猫完全包围的
-白色毛发（耳朵、胸口）恢复为不透明——抠底不再误伤猫身。
+### 0x02 · 肉身归一 / Body Normalization
 
-Seeds from all four borders, **flood fill** eats every white/gray pixel connected to the edge;
-then a hole-filling pass restores white fur fully enclosed by the cat (ears, chest).
+从「整张 GIF 缩放」进化为「只缩猫身」：自动裁切空白边缘 + 统一
+180px 高度 + 底部对齐，杜绝「有的猫飘在空中，有的猫钻进地下」。
 
-### 0x02 · Mask Erosion / 透明边界内收
-
-透明边界向内收缩 **2px**，并生成两圈软边缘（alpha 130 / 210），让边缘从「生硬裁剪」变成
-「细腻过渡」——抗锯齿毛边在这里彻底退场。
-
-The transparency mask erodes **2px** inward, then two soft-edge rings (alpha 130 / 210)
-turn harsh clipping into a smooth transition — goodbye, anti-aliased fringes.
-
-### 0x03 · 收尾剪除 / Final Trim
-
-软边圈上残留的浅色像素再补 4 轮裁剪，宁可砍一圈毛，也不留一根白边。
-
-Four final trim passes cut any remaining light pixels on the soft rings.
-**Better to shave off a ring of fur than leave a single white edge.**
+---
 
 ## 🧠 抠图算法 / Keying Algorithm
 
@@ -69,57 +82,82 @@ Four final trim passes cut any remaining light pixels on the soft rings.
 
 | 常量 | 值 | 作用 |
 | --- | --- | --- |
-| `WHITE_SUM` | 700 | R+G+B 超过即强制 alpha=0（近白判定） |
-| `BG_COLORS` | (205,206,204) / (90,90,89) | GIF 自带灰边色族 |
-| `BG_TOL` | 18 | 与灰边色族的欧氏距离阈值 |
-| `EDGE_CUT` | 560 | 贴边浅色像素的剪除阈值 |
+| `LUMA_BG` | 235 | 亮度超过它 → 完全透明 |
+| `ERODE_PX` | 1 | 1px 边缘侵蚀，裁掉半透明残边 |
+| `SOFT_EDGE` | (110, 190) | 两圈软 Alpha 平滑羽化 |
+| `RING_LUMA_CUT` | 200 | 软边圈偏亮像素直接裁掉 |
+| `TARGET_SIZE` | 250 | 标准画布尺寸 |
+| `BODY_HEIGHT` | 180 | 猫咪肉身统一高度 |
 
-完整流水线：
+完整管线：亮度 Alpha Mask → 填洞保白毛 → 1px 边缘侵蚀 →
+全像素平滑羽化。自动识别自带透明通道的 GIF（直接用源 Alpha）。
 
-1. 强制阈值：`R+G+B > 700` → 全透明
-2. 泛洪抠底：吃掉与边缘连通的白底 + 灰边
-3. 填洞：恢复被猫完全包围的白色毛发
-4. 浅色毛边剪除：贴透明区的浅色像素直接归零
-5. Mask Erosion：内收 2px + 两圈软边缘（alpha 130 / 210）
-6. 收尾：软边圈浅色像素再补 4 轮裁剪
+---
 
 ## 🚀 安装运行 / Setup
 
-要求：Python 3.14+（3.10+ 亦可）、PyQt6
+要求：Python 3.10+、Windows。
 
 ```bash
-pip install PyQt6
+pip install PyQt6 psutil pynput pygetwindow
+```
+
+启动：
+
+```bash
 python main.py
 ```
 
-可选：预先生成透明帧缓存，让启动秒开：
+可选：预生成全部皮肤的帧缓存（秒开启动）：
 
 ```bash
 python preprocess.py
 ```
 
+全形态切换演示（四套皮肤轮播后自动退出）：
+
+```bash
+python demo_skins.py
+```
+
+---
+
 ## 🎮 玩法 / Usage
 
-- 左键按住猫咪：拎着满屏跑 / Drag with left mouse button
-- 右键点击猫咪：弹出菜单，选择「退出」/ Right-click for menu → Quit
-- 找不到 `cat.gif`：弹窗提醒，并先用粉色小方块顶班 / Falls back to a pink square
+- 左键按住猫咪：拎起来 → FOLLOWING，猫喊「哎呀！被抓住了喵！」
+- 左键按住拖动：拎着猫满屏跑，松手自动复位环境状态
+- 右键点击猫咪：弹出菜单，选择「退出」
+- 台词气泡：切状态立即弹一句，每 30–60 秒再随机冒一句
+- 换皮肤：把 `idle.gif` / `work.gif` / `alert.gif` / `follow.gif`
+  放进 `assets/` 即可，缺失自动回退 `cat.gif`
+
+---
 
 ## 📁 项目结构 / Project Structure
 
 ```
-Salary-Cat-Vibe/
-├── main.py          # 桌面宠物主程序（实时抠图 / 播放帧缓存）
-├── preprocess.py    # 离线预抠：GIF → 透明 PNG 帧序列
-├── cat.gif          # 小猫素材（白底灰边，运行时抠除）
-└── .frames_cache/   # 预处理帧缓存（自动生成，已 gitignore）
+Salary_Cat/
+├── main.py          # 主程序（状态机 + 感知 + 抠图 + 特效 + 台词）
+├── preprocess.py    # 预抠图缓存生成器
+├── demo_skins.py    # 全形态切换演示
+├── cat.gif          # 兜底皮肤
+├── idle.gif         # IDLE 皮肤
+├── work.gif         # WORKING 皮肤
+├── alert.gif        # ALERT 皮肤
+├── follow.gif       # FOLLOWING 皮肤
+├── assets/          # 自定义皮肤目录（可选）
+├── .frames_cache/   # 预抠图缓存（自动生成，已 gitignore）
+└── MANUAL.md        # 使用说明书
 ```
+
+---
 
 ## 💝 Credits / 致谢
 
 AI 时代原生的协作结晶，三个人格的联合创作：
 
-- 🧠 **DeepSeek R1** — 大脑：算法设计与抠图方案
+- 🧠 **DeepSeek R1** — 大脑：算法设计与状态机方案
 - ✋ **OpenAI Codex** — 双手：编码与工程落地
 - 🎬 **kaelan0528** — 导演：定义 Vibe 与产品方向
 
-**Vibe Coding 1.0** —— 月薪喵，赛博禅意的桌面守护者。🐱
+**Vibe Coding 1.1** —— 月薪喵，感官进化的桌面守护者。🐱
