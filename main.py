@@ -1,10 +1,11 @@
 """月薪喵 · 桌面宠物
 
 透明、无边框、永远置顶的小猫。
-行为由状态机驱动：PetState(IDLE / WORKING / ALERT / FOLLOWING)
+行为由状态机驱动：PetState(IDLE / WORKING / DANCE / ALERT / FOLLOWING)
 决定当前播放哪套素材与逻辑（阶段三：本地台词气泡 + 终极 Alpha Mask 抠图）。
-每秒心跳感知：CPU>80% → ALERT；VS Code 前台且有近期输入 → WORKING；
-否则 IDLE；FOLLOWING 由拖拽事件触发（左键拎起，松开自动复位）。
+每秒心跳感知：CPU>80% → ALERT；Codex 桌面 App 前台 → DANCE；
+VS Code 前台且有近期输入 → WORKING；否则 IDLE；
+FOLLOWING 由拖拽事件触发（左键拎起，松开自动复位）。
 抠图不再靠颜色家族过滤：亮度 >235 的像素直接进 Alpha Mask 变透明，
 再做 1px 边缘侵蚀 + 全像素平滑羽化，让猫像“长”在任意背景上。
 """
@@ -79,8 +80,8 @@ BUBBLE_DURATION = 5000  # 气泡持续显示时长（毫秒）
 DIALOGUE_INTERVAL = (30, 60)  # 随机弹气泡的间隔范围（秒）
 
 # 尺寸对齐（阶段三终放）
-TARGET_SIZE = 250       # 标准画布：装得下所有 180px 高的猫咪肉身
-BODY_HEIGHT = 180       # 猫咪肉身统一高度（宽度按比例自适应）
+TARGET_SIZE = 125       # 标准画布：装得下所有 90px 高的猫咪肉身
+BODY_HEIGHT = 90        # 猫咪肉身统一高度（宽度按比例自适应）
 
 
 class PetState(Enum):
@@ -88,6 +89,7 @@ class PetState(Enum):
 
     IDLE = "IDLE"
     WORKING = "WORKING"
+    DANCE = "DANCE"
     ALERT = "ALERT"
     FOLLOWING = "FOLLOWING"
 
@@ -111,6 +113,13 @@ DIALOGUE_LIB = {
         "这段逻辑好烧脑喵…",
         "冲鸭！把需求全干掉！",
         "我是懂打工的猫喵",
+    ],
+    PetState.DANCE: [
+        "主公召唤 Codex，猫咪摸鱼！",
+        "代码写累了？开始摸鱼喵~",
+        "Vibe 到位，舞力全开喵！",
+        "AI 跳舞时间到，前排围观喵！",
+        "左三圈右三圈，脖子扭扭喵~",
     ],
     PetState.ALERT: [
         "主公快看！CPU 要炸了喵！",
@@ -347,6 +356,7 @@ class Cat(QWidget):
         self.assets = {
             PetState.IDLE: "idle.gif",
             PetState.WORKING: "work.gif",
+            PetState.DANCE: "dance.gif",
             PetState.ALERT: "alert.gif",
             PetState.FOLLOWING: "follow.gif",
         }
@@ -406,7 +416,7 @@ class Cat(QWidget):
         self._bubble.setStyleSheet(
             "background:rgba(0,0,0,180);color:#ffffff;"
             "border:1px solid rgba(255,255,255,80);"
-            "border-radius:10px;padding:4px 8px;font-size:13px;"
+            "border-radius:8px;padding:2px 6px;font-size:10px;"
         )
         self._bubble.adjustSize()
         self._bubble.setAttribute(
@@ -546,6 +556,8 @@ class Cat(QWidget):
             self._play_idle()
         elif self.current_state == PetState.WORKING:
             self._play_working()
+        elif self.current_state == PetState.DANCE:
+            self._play_dance()
         elif self.current_state == PetState.ALERT:
             self._play_alert()
         elif self.current_state == PetState.FOLLOWING:
@@ -569,6 +581,11 @@ class Cat(QWidget):
         self._switch_asset(PetState.WORKING)
         self._breath_phase = 0.0
         self._breath_timer.start(100)
+        self._say_current()
+
+    def _play_dance(self):
+        """DANCE：主公召唤 Codex 时献舞，原样播放。"""
+        self._switch_asset(PetState.DANCE)
         self._say_current()
 
     def _play_alert(self):
@@ -631,9 +648,12 @@ class Cat(QWidget):
 
         cpu = self._cpu_percent()
         vscode = self._vscode_active()
+        codex = self._codex_active()
 
         if cpu > CPU_ALERT:
             target = PetState.ALERT          # 优先级最高
+        elif codex:
+            target = PetState.DANCE          # 次高：Codex 前台献舞
         elif vscode and self._has_input \
                 and time.monotonic() - self._last_input_ts <= WORK_IDLE_SEC:
             target = PetState.WORKING        # 高：前台工作且有近期输入
@@ -664,6 +684,46 @@ class Cat(QWidget):
             except Exception:
                 return False
         return "visual studio code" in title.lower()
+
+    def _codex_active(self):
+        """OpenAI 桌面 App（ChatGPT/Codex）是否在前台。
+
+        该 App 的窗口标题固定为 "ChatGPT"（Codex 也在这个 App 里工作），
+        所以以进程名判定：ChatGPT.exe / codex.exe 在前台即视为 Codex 工作，
+        避免 VS Code 打开名为 codex.py 的文件时误触发；
+        进程信息拿不到时退化为按标题含 "codex" 或 "chatgpt" 判断。
+        """
+        pname = self._foreground_process_name()
+        if pname:
+            return pname in ("chatgpt.exe", "chatgpt", "codex.exe", "codex")
+        title = ""
+        if gw is not None:
+            try:
+                win = gw.getActiveWindow()
+                title = (win.title if win is not None else "") or ""
+            except Exception:
+                try:
+                    title = gw.getActiveWindowTitle() or ""
+                except Exception:
+                    pass
+        return bool(title) and (
+            "codex" in title.lower() or "chatgpt" in title.lower()
+        )
+
+    def _foreground_process_name(self):
+        """返回前台窗口的进程名（小写）；获取失败返回空串。"""
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            pid = ctypes.c_ulong()
+            ctypes.windll.user32.GetWindowThreadProcessId(
+                hwnd, ctypes.byref(pid)
+            )
+            if pid.value and psutil is not None:
+                return psutil.Process(pid.value).name().lower()
+        except Exception:
+            pass
+        return ""
 
     def _mouse_pos(self):
         if mouse is None:

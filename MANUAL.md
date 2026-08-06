@@ -8,7 +8,7 @@
 
 月薪喵（Salary Cat）是一个桌面宠物程序，基于 Python + PyQt6 开发。
 它通过「心跳感知」实时观察你的电脑状态（CPU、前台窗口、鼠标位置、
-全局输入活动），在四种状态间自动切换，并用不同皮肤 + 特效 + 台词
+全局输入活动），在五种状态间自动切换，并用不同皮肤 + 特效 + 台词
 气泡来回应你。
 
 ---
@@ -41,7 +41,10 @@ python main.py
 # 可选：预先抠图生成帧缓存，让启动/切皮肤秒开
 python preprocess.py
 
-# 可选：全形态切换演示（四种皮肤轮流展示 3.5 秒后自动退出）
+# 可选：由缓存帧生成 dance.gif（默认 50ms/帧，可加 --delay 调整）
+python build_dance_gif.py
+
+# 可选：全形态切换演示（五种皮肤轮流展示 3.5 秒后自动退出）
 python demo_skins.py
 ```
 
@@ -62,13 +65,14 @@ python demo_skins.py
 
 ## 5. 状态机
 
-### 5.1 四种状态
+### 5.1 五种状态
 
 | 状态 | 触发条件 | 优先级 | 视觉表现 | 台词示例 |
 | --- | --- | --- | --- | --- |
 | ALERT | CPU 使用率 > 80% | 最高 | 红色滤镜 + 窗口 ±5px 随机震动 | “主公快看！CPU 要炸了喵！” |
 | FOLLOWING | 左键按住猫咪（拎起） | 用户主动触发 | 水平镜像，拎到哪跟到哪 | “哎呀！被抓住了喵！” |
 | WORKING | VS Code 在前台 且 30 秒内有输入 | 中 | 半透明呼吸（80%–100%） | “主公加油，月薪翻倍！” |
+| DANCE | OpenAI 桌面 App（ChatGPT/Codex）在前台 | 次高 | 原样播放 dance 动画 | “主公召唤 Codex，猫咪献舞！” |
 | IDLE | 以上都不满足 | 低（默认） | 原样发呆 | “发呆中...” |
 
 ### 5.2 心跳感知逻辑
@@ -77,6 +81,7 @@ python demo_skins.py
 
 ```
 CPU > 80%                    → ALERT
+OpenAI 桌面 App（ChatGPT/Codex）前台 → DANCE
 VS Code 前台 + 有近期输入    → WORKING（停手超过 30 秒自动降级 IDLE）
 否则                          → IDLE
 ```
@@ -104,7 +109,7 @@ FOLLOWING 由拖拽事件触发，完整调用链如下：
    （鼠标在猫左边 → 面向左；在右边 → 面向右），
    心跳 `_sense()` 检测到拖拽中直接跳过，状态不会被抢走
 5. 松开左键 → `mouseReleaseEvent()`：`_dragging = False`，
-   立即调用 `_sense()` 复测环境 → 回到 IDLE / WORKING / ALERT
+   立即调用 `_sense()` 复测环境 → 回到 IDLE / WORKING / DANCE / ALERT
 
 注意一点：
 
@@ -121,6 +126,7 @@ FOLLOWING 由拖拽事件触发，完整调用链如下：
 | --- | --- |
 | IDLE | `idle.gif` |
 | WORKING | `work.gif` |
+| DANCE | `dance.gif` |
 | ALERT | `alert.gif` |
 | FOLLOWING | `follow.gif` |
 | 兜底 | `cat.gif` |
@@ -137,8 +143,8 @@ FOLLOWING 由拖拽事件触发，完整调用链如下：
 - `KeepAspectRatio`：等比例缩放，不变形
 - `SmoothTransformation`：抗锯齿平滑，边缘无毛刺
 - 水平居中、底部对齐：所有猫脚踩同一条地平线
-- 画布 `250 × 250`，窗口固定 `250 × 297`（含气泡头顶空间），
-  切换皮肤大小恒定
+- 画布 `125 × 125`，窗口宽固定 `125`、高 = 气泡高度 + 10 + 125
+  （含气泡头顶空间），切换皮肤大小恒定
 
 ---
 
@@ -195,10 +201,12 @@ ALERT 需要 CPU > 80%，只有跑高负载程序（编译、转码、压测等�
 Salary_Cat/
 ├── main.py          # 主程序（状态机 + 感知 + 抠图 + 特效 + 台词）
 ├── preprocess.py    # 预抠图缓存生成器
+├── build_dance_gif.py # 由缓存帧生成 dance.gif
 ├── demo_skins.py    # 全形态切换演示
 ├── cat.gif          # 兜底皮肤
 ├── idle.gif         # IDLE 皮肤
 ├── work.gif         # WORKING 皮肤
+├── dance.gif        # DANCE 皮肤
 ├── alert.gif        # ALERT 皮肤
 ├── follow.gif       # FOLLOWING 皮肤
 ├── assets/          # 自定义皮肤目录（可选）

@@ -23,9 +23,9 @@
 ## ✨ 功能亮点 / Features
 
 - 🧠 **环境感知系统** — 实时监控 CPU 负载、自动识别 VS Code 办公状态
-  （psutil + pygetwindow + pynput 三件套）
-- 🤖 **智能状态机** — 支持 `IDLE` / `WORKING` / `ALERT` / `FOLLOWING`
-  四种行为逻辑，按优先级自动切换
+  与 OpenAI 桌面 App（ChatGPT/Codex）前台（psutil + pygetwindow + pynput 三件套）
+- 🤖 **智能状态机** — 支持 `IDLE` / `WORKING` / `DANCE` / `ALERT` / `FOLLOWING`
+  五种行为逻辑，按优先级自动切换
 - 🖼️ **视觉归一化** — 独创「肉身识别」算法：自动裁切 GIF 空白边缘，
   统一猫咪大小，所有猫脚踩同一条地平线
 - 💬 **零成本互动** — 本地化语料库气泡，不联网不花钱，随状态弹台词
@@ -44,6 +44,7 @@
 | ALERT | CPU > 80% | 红色滤镜 + 窗口随机震动 |
 | FOLLOWING | 左键拎起猫咪 | 拖拽跟随 + 拎起台词 |
 | WORKING | VS Code 前台 + 30 秒内有输入 | 半透明呼吸 + Coding 气泡 |
+| DANCE | OpenAI 桌面 App（ChatGPT/Codex）前台 | 原样播放舞蹈动画 + 台词 |
 | IDLE | 默认 | 发呆 + 随机台词 |
 
 ---
@@ -52,7 +53,7 @@
 
 每帧扫描非透明像素的最小矩形（Auto-Crop，忽略空白/透明区），
 再把猫身等比例缩放到统一高度 `180px`（宽度按比例自适应），
-水平居中、底部对齐——四只猫个头整齐，像排队领工资。
+水平居中、底部对齐——五只猫个头整齐，像排队领工资。
 
 ---
 
@@ -86,8 +87,8 @@
 | `ERODE_PX` | 1 | 1px 边缘侵蚀，裁掉半透明残边 |
 | `SOFT_EDGE` | (110, 190) | 两圈软 Alpha 平滑羽化 |
 | `RING_LUMA_CUT` | 200 | 软边圈偏亮像素直接裁掉 |
-| `TARGET_SIZE` | 250 | 标准画布尺寸 |
-| `BODY_HEIGHT` | 180 | 猫咪肉身统一高度 |
+| `TARGET_SIZE` | 125 | 标准画布尺寸 |
+| `BODY_HEIGHT` | 90 | 猫咪肉身统一高度 |
 
 完整管线：亮度 Alpha Mask → 填洞保白毛 → 1px 边缘侵蚀 →
 全像素平滑羽化。自动识别自带透明通道的 GIF（直接用源 Alpha）。
@@ -114,7 +115,13 @@ python main.py
 python preprocess.py
 ```
 
-全形态切换演示（四套皮肤轮播后自动退出）：
+可选：由缓存帧生成 `dance.gif`（默认 50ms/帧，可加 `--delay` 调整）：
+
+```bash
+python build_dance_gif.py
+```
+
+全形态切换演示（五套皮肤轮播后自动退出）：
 
 ```bash
 python demo_skins.py
@@ -128,7 +135,7 @@ python demo_skins.py
 - 左键按住拖动：拎着猫满屏跑，松手自动复位环境状态
 - 右键点击猫咪：弹出菜单，选择「退出」
 - 台词气泡：切状态立即弹一句，每 30–60 秒再随机冒一句
-- 换皮肤：把 `idle.gif` / `work.gif` / `alert.gif` / `follow.gif`
+- 换皮肤：把 `idle.gif` / `work.gif` / `dance.gif` / `alert.gif` / `follow.gif`
   放进 `assets/` 即可，缺失自动回退 `cat.gif`
 
 ---
@@ -139,10 +146,12 @@ python demo_skins.py
 Salary_Cat/
 ├── main.py          # 主程序（状态机 + 感知 + 抠图 + 特效 + 台词）
 ├── preprocess.py    # 预抠图缓存生成器
+├── build_dance_gif.py # 由缓存帧生成 dance.gif
 ├── demo_skins.py    # 全形态切换演示
 ├── cat.gif          # 兜底皮肤
 ├── idle.gif         # IDLE 皮肤
 ├── work.gif         # WORKING 皮肤
+├── dance.gif        # DANCE 皮肤
 ├── alert.gif        # ALERT 皮肤
 ├── follow.gif       # FOLLOWING 皮肤
 ├── assets/          # 自定义皮肤目录（可选）

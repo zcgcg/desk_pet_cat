@@ -17,6 +17,7 @@ import main as cat
 STATES = [
     cat.PetState.IDLE,
     cat.PetState.WORKING,
+    cat.PetState.DANCE,
     cat.PetState.ALERT,
     cat.PetState.FOLLOWING,
 ]
