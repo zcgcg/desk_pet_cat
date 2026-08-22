@@ -80,8 +80,8 @@ BUBBLE_DURATION = 5000  # 气泡持续显示时长（毫秒）
 DIALOGUE_INTERVAL = (30, 60)  # 随机弹气泡的间隔范围（秒）
 
 # 尺寸对齐（阶段三终放）
-TARGET_SIZE = 125       # 标准画布：装得下所有 90px 高的猫咪肉身
-BODY_HEIGHT = 90        # 猫咪肉身统一高度（宽度按比例自适应）
+TARGET_SIZE = 188       # 标准画布：装得下所有 90px 高的猫咪肉身
+BODY_HEIGHT = 135        # 猫咪肉身统一高度（宽度按比例自适应）
 
 
 class PetState(Enum):
