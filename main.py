@@ -4,6 +4,9 @@
 行为由状态机驱动：PetState(IDLE / WORKING / DANCE / ALERT / FOLLOWING)
 决定当前播放哪套素材与逻辑（阶段三：本地台词气泡 + 终极 Alpha Mask 抠图）。
 每秒心跳感知：CPU>80% → ALERT；Codex 桌面 App 前台 → DANCE；
+DeepSeek Harness 前台 → 按 agent 是否运行细分：
+  agent 运行中（网络有 LLM 连接 / 会话文件持续写入）→ WORKING（AI 代劳搬砖）；
+  仅进入界面（如输入框打字）→ IDLE（发呆摸鱼）；
 VS Code 前台且有近期输入 → WORKING；否则 IDLE；
 FOLLOWING 由拖拽事件触发（左键拎起，松开自动复位）。
 抠图不再靠颜色家族过滤：亮度 >235 的像素直接进 Alpha Mask 变透明，
@@ -73,6 +76,12 @@ CPU_ALERT = 80.0        # CPU 使用率超过它 → ALERT
 WORK_IDLE_SEC = 30      # WORKING 下无输入超过它 → 降级 IDLE
 SENSE_INTERVAL = 1000   # 心跳感知周期（毫秒）
 JITTER_PX = 5           # ALERT 窗口震动幅度（像素）
+
+# DeepSeek Harness 感知（阶段四）
+DSH_WEB_PORT = 3080             # dsh web GUI 默认端口
+DSH_SESSION_DIR = Path.home() / ".dsh" / "sessions"  # 会话记录目录
+DSH_SESSION_FILE = "session.jsonl.zstd"  # 会话记录文件名（zstd 压缩 JSONL）
+AGENT_ACTIVE_SEC = 20           # 会话文件最近 N 秒内有写入 → agent 运行中
 
 # 台词气泡（阶段三）
 BUBBLE_MARGIN = 10      # 气泡底边到猫头顶的间距（像素，贴近猫咪）
@@ -649,11 +658,16 @@ class Cat(QWidget):
         cpu = self._cpu_percent()
         vscode = self._vscode_active()
         codex = self._codex_active()
+        dsh = self._dsh_active()
 
         if cpu > CPU_ALERT:
             target = PetState.ALERT          # 优先级最高
         elif codex:
             target = PetState.DANCE          # 次高：Codex 前台献舞
+        elif dsh:
+            # DeepSeek Harness 前台：按 agent 是否在干活细分
+            target = (PetState.WORKING if self._dsh_agent_running()
+                      else PetState.IDLE)
         elif vscode and self._has_input \
                 and time.monotonic() - self._last_input_ts <= WORK_IDLE_SEC:
             target = PetState.WORKING        # 高：前台工作且有近期输入
@@ -709,6 +723,90 @@ class Cat(QWidget):
         return bool(title) and (
             "codex" in title.lower() or "chatgpt" in title.lower()
         )
+
+    def _dsh_active(self):
+        """DeepSeek Harness（Web GUI / dsh CLI）是否在前台。
+
+        判定依据（按可靠性排序）：
+        1. 窗口标题：Web GUI 的浏览器标签页标题固定为 "DeepSeek Harness"
+           （dev 构建为 "DSH Local Build"），会话标题形如
+           "<会话名> — DeepSeek Harness"；
+        2. 进程名：dsh 启动器（dsh.exe / dsh.cmd / dsh.ps1 等）。
+        命中即视为“AI 在代劳”，宠物进入 IDLE 摸鱼。
+        """
+        title = ""
+        if gw is not None:
+            try:
+                win = gw.getActiveWindow()
+                title = (win.title if win is not None else "") or ""
+            except Exception:
+                try:
+                    title = gw.getActiveWindowTitle() or ""
+                except Exception:
+                    pass
+        if title:
+            t = title.lower()
+            if "deepseek harness" in t or "dsh local build" in t:
+                return True
+        pname = self._foreground_process_name()
+        if pname and (pname == "dsh" or pname == "dsh.exe" or pname.startswith("dsh.")):
+            return True
+        return False
+
+    def _dsh_agent_running(self):
+        """DeepSeek Harness 的 agent 是否正在执行回合。
+
+        两个独立信号，任一命中即视为运行中（先查便宜的，再查贵的）：
+        1. 会话文件：~/.dsh/sessions 下最新 session.jsonl.zstd 在最近
+           AGENT_ACTIVE_SEC 秒内被追加写入——agent 每轮推理/工具调用都落盘，
+           用户在输入框打字时不会写文件；
+        2. 网络连接：监听 DSH Web 端口的进程树存在对外的活跃 TCP 连接
+           ——agent 推理时与 LLM API（api.deepseek.com:443）保持连接，
+           覆盖文件写入有延迟/长间隔的场景。
+        """
+        if self._dsh_session_fresh():
+            return True
+        return self._dsh_has_external_conn()
+
+    def _dsh_session_fresh(self):
+        """最新 DSH 会话文件是否在最近 AGENT_ACTIVE_SEC 秒内有写入。"""
+        try:
+            now = time.time()
+            newest = None
+            for p in DSH_SESSION_DIR.rglob(DSH_SESSION_FILE):
+                try:
+                    mt = p.stat().st_mtime
+                except OSError:
+                    continue
+                if newest is None or mt > newest[1]:
+                    newest = (p, mt)
+            return newest is not None and now - newest[1] <= AGENT_ACTIVE_SEC
+        except Exception:
+            return False
+
+    def _dsh_has_external_conn(self):
+        """DSH Web 进程树（含子进程）是否有对外非回环的活跃 TCP 连接。"""
+        if psutil is None:
+            return False
+        try:
+            conns = psutil.net_connections(kind="tcp")
+            server_pid = None
+            for c in conns:
+                if c.status == "LISTEN" and c.laddr.port == DSH_WEB_PORT:
+                    server_pid = c.pid
+                    break
+            if server_pid is None:
+                return False
+            root = psutil.Process(server_pid)
+            tree = {root.pid} | {c.pid for c in root.children(recursive=True)}
+            for c in conns:
+                if c.status == "ESTABLISHED" and c.pid in tree and c.raddr:
+                    ip = c.raddr.ip
+                    if not (ip.startswith("127.") or ip == "::1" or ip == "::"):
+                        return True
+        except Exception:
+            pass
+        return False
 
     def _foreground_process_name(self):
         """返回前台窗口的进程名（小写）；获取失败返回空串。"""

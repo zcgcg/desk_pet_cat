@@ -22,8 +22,10 @@
 
 ## ✨ 功能亮点 / Features
 
-- 🧠 **环境感知系统** — 实时监控 CPU 负载、自动识别 VS Code 办公状态
-  与 OpenAI 桌面 App（ChatGPT/Codex）前台（psutil + pygetwindow + pynput 三件套）
+- 🧠 **环境感知系统** — 实时监控 CPU 负载、自动识别 VS Code 办公状态、
+  OpenAI 桌面 App（ChatGPT/Codex）与 DeepSeek Harness 前台，并能通过
+  LLM 网络连接 / 会话文件写入判断 DSH 的 agent 是否正在运行
+  （psutil + pygetwindow + pynput 三件套）
 - 🤖 **智能状态机** — 支持 `IDLE` / `WORKING` / `DANCE` / `ALERT` / `FOLLOWING`
   五种行为逻辑，按优先级自动切换
 - 🖼️ **视觉归一化** — 独创「肉身识别」算法：自动裁切 GIF 空白边缘，
@@ -43,8 +45,10 @@
 | --- | --- | --- |
 | ALERT | CPU > 80% | 红色滤镜 + 窗口随机震动 |
 | FOLLOWING | 左键拎起猫咪 | 拖拽跟随 + 拎起台词 |
-| WORKING | VS Code 前台 + 30 秒内有输入 | 半透明呼吸 + Coding 气泡 |
 | DANCE | OpenAI 桌面 App（ChatGPT/Codex）前台 | 原样播放舞蹈动画 + 台词 |
+| WORKING | DeepSeek Harness 前台 + agent 运行中（LLM 连接 / 会话文件持续写入） | AI 代劳搬砖，猫咪呼吸 |
+| IDLE | DeepSeek Harness 前台 + 无 agent 运行（如输入框打字） | AI 待命，猫咪发呆摸鱼 |
+| WORKING | VS Code 前台 + 30 秒内有输入 | 半透明呼吸 + Coding 气泡 |
 | IDLE | 默认 | 发呆 + 随机台词 |
 
 ---
