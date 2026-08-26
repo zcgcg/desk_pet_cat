@@ -131,6 +131,17 @@ python build_dance_gif.py
 python demo_skins.py
 ```
 
+开机自启动（Windows，写入当前用户注册表，无需管理员权限）：
+
+```bash
+python autostart.py enable     # 启用：开机用 pythonw 静默启动，不弹黑框
+python autostart.py disable    # 禁用
+python autostart.py status     # 查询状态
+```
+
+也可以右键猫咪 → 勾选「开机自启动」直接切换。
+程序自带单实例保护：开机自启后手动再启动不会出现两只猫。
+
 ---
 
 ## 🎮 玩法 / Usage

@@ -50,6 +50,22 @@ python demo_skins.py
 
 找不到素材时会自动降级，程序不会崩溃。
 
+### 3.1 开机自启动（Windows）
+
+让猫每天开机自动出现在桌面，无需手动启动：
+
+```bash
+python autostart.py enable     # 启用
+python autostart.py disable    # 禁用
+python autostart.py status     # 查询状态
+```
+
+原理：写入当前用户的注册表 `HKCU\...\Run` 键，无需管理员权限；
+以 `pythonw.exe` 静默启动 `main.py`，开机不弹黑色控制台窗口。
+
+也可以右键猫咪 → 勾选「开机自启动」直接切换，效果一致。
+程序是单实例的：开机自启后手动再启动只会保留一只猫。
+
 ---
 
 ## 4. 基本操作

@@ -22,6 +22,7 @@ from enum import Enum
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QPoint, QTimer
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtGui import (
     QAction,
     QColor,
@@ -888,14 +889,58 @@ class Cat(QWidget):
     # ---- 右键：猫咪菜单 ----
     def contextMenuEvent(self, event):
         menu = QMenu(self)
+        autostart_action = QAction("开机自启动", self, checkable=True)
+        autostart_action.triggered.connect(self._toggle_autostart)
+        try:
+            import autostart
+            autostart_action.setChecked(autostart.is_enabled())
+        except Exception:
+            autostart_action.setEnabled(False)  # 非 Windows / 缺依赖时置灰
+        menu.addAction(autostart_action)
+        menu.addSeparator()
         quit_action = QAction("退出", self)
         quit_action.triggered.connect(QApplication.instance().quit)
         menu.addAction(quit_action)
         menu.exec(event.globalPos())
 
+    def _toggle_autostart(self, checked):
+        """右键菜单开关：勾选启用 / 取消禁用开机自启动。"""
+        try:
+            import autostart
+        except Exception:
+            return
+        ok = autostart.enable() if checked else autostart.disable()
+        if not ok:
+            QMessageBox.warning(
+                self, "月薪喵", "设置开机自启动失败，请检查注册表权限。"
+            )
+
+
+# 单实例互斥：防止开机自启与手动启动撞车，桌面上出现两只猫
+_SINGLE_INSTANCE_NAME = "SalaryCat.SingleInstance"
+_single_server = None
+
+
+def _ensure_single_instance():
+    """确保只有一个实例在跑；已有实例时返回 False，新进程应直接退出。"""
+    global _single_server
+    probe = QLocalSocket()
+    probe.connectToServer(_SINGLE_INSTANCE_NAME)
+    if probe.waitForConnected(200):
+        probe.disconnectFromServer()
+        return False
+    probe.disconnectFromServer()
+    server = QLocalServer()
+    server.removeServer(_SINGLE_INSTANCE_NAME)  # 清理上次异常退出残留的管道
+    _single_server = server
+    return server.listen(_SINGLE_INSTANCE_NAME)
+
 
 def main():
     app = QApplication(sys.argv)
+
+    if not _ensure_single_instance():
+        return 0  # 桌面上已经有猫了，别复制粘贴
 
     if not GIF.exists():
         QMessageBox.warning(
