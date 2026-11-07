@@ -9,6 +9,7 @@ DeepSeek Harness 前台 → 按 agent 是否运行细分：
   仅进入界面（如输入框打字）→ IDLE（发呆摸鱼）；
 VS Code 前台且有近期输入 → WORKING；否则 IDLE；
 FOLLOWING 由拖拽事件触发（左键拎起，松开自动复位）。
+鼠标在猫身上连续停留 0.4 秒 → 自动隐身躲起来，鼠标移开 → 立刻现身。
 抠图不再靠颜色家族过滤：亮度 >235 的像素直接进 Alpha Mask 变透明，
 再做 1px 边缘侵蚀 + 全像素平滑羽化，让猫像“长”在任意背景上。
 """
@@ -21,11 +22,12 @@ from collections import deque
 from enum import Enum
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QPoint, QTimer
+from PyQt6.QtCore import Qt, QPoint, QRect, QTimer
 from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtGui import (
     QAction,
     QColor,
+    QCursor,
     QImage,
     QImageReader,
     QPainter,
@@ -77,6 +79,10 @@ CPU_ALERT = 80.0        # CPU 使用率超过它 → ALERT
 WORK_IDLE_SEC = 30      # WORKING 下无输入超过它 → 降级 IDLE
 SENSE_INTERVAL = 1000   # 心跳感知周期（毫秒）
 JITTER_PX = 5           # ALERT 窗口震动幅度（像素）
+
+# 悬停隐身（Peek-a-Boo）
+HOVER_POLL_MS = 100     # 悬停检测轮询周期（毫秒）
+HOVER_HIDE_MS = 400     # 鼠标在窗口内连续停留多久后隐身（毫秒）
 
 # DeepSeek Harness 感知（阶段四）
 DSH_WEB_PORT = 3080             # dsh web GUI 默认端口
@@ -392,6 +398,16 @@ class Cat(QWidget):
         self._follow_timer = QTimer(self)
         self._follow_timer.timeout.connect(self._on_follow_tick)
 
+        # ---- 悬停隐身 ----
+        self._hover_since = None     # 连续悬停的起点（time.monotonic）
+        self._hover_hidden = False   # 当前是否因悬停而隐身
+        self._hidden_rect = None     # 隐身瞬间冻结的全局矩形（离开判据）
+        self._hover_armed = True     # 防"恢复后立刻又被判悬停"的闪烁循环
+        self._menu_open = False      # 右键菜单打开期间不隐身
+        self._hover_error = False    # 兜底告警只报一次，别刷屏
+        self._hover_timer = QTimer(self)
+        self._hover_timer.timeout.connect(self._hover_tick)
+
         # ---- 台词气泡（Zero-Token 对话）----
         self._dialogue_timer = QTimer(self)
         self._dialogue_timer.timeout.connect(self._on_dialogue_tick)
@@ -409,6 +425,7 @@ class Cat(QWidget):
         self._sense_timer.timeout.connect(self._sense)
         self._sense_timer.start(SENSE_INTERVAL)
         self._start_input_listener()
+        self._hover_timer.start(HOVER_POLL_MS)
 
     def _build_ui(self):
         # 透明 + 无边框 + 置顶，一气呵成
@@ -417,6 +434,8 @@ class Cat(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # 恢复显示时只露出窗口，不抢走用户当前应用的焦点
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
         self._label = QLabel(self)
 
@@ -523,6 +542,8 @@ class Cat(QWidget):
         """ALERT：±5px 随机震动。"""
         if self._jitter_base is None:
             return
+        if self._hover_hidden:
+            return  # 隐身中不抖：免得窗口漂走，恢复后热区判断错位
         dx = random.randint(-JITTER_PX, JITTER_PX)
         dy = random.randint(-JITTER_PX, JITTER_PX)
         self.move(self._jitter_base + QPoint(dx, dy))
@@ -868,9 +889,84 @@ class Cat(QWidget):
         self._timer.start(self._delays[self._frame])
         self._frame = (self._frame + 1) % len(self._frames)
 
+    # ---- 悬停隐身（Peek-a-Boo）----
+    def _hover_tick(self):
+        """每 100ms 巡检：连续悬停 0.4s 隐身，鼠标移开立即恢复。
+
+        隐身时窗口不在屏幕上，只能用隐身瞬间冻结的全局矩形判断是否离开；
+        可见时才用实时几何，保证热区与眼睛看到的一致。
+        """
+        try:
+            if self._dragging or self._menu_open or self._any_mouse_button_down():
+                self._hover_since = None
+                return  # 正拎着猫 / 开着菜单 / 按着键，绝不隐身
+
+            pos = QCursor.pos()
+
+            if self._hover_hidden:
+                if self._hidden_rect is None or not self._hidden_rect.contains(pos):
+                    self._hover_hidden = False
+                    self._hidden_rect = None
+                    self._hover_armed = False  # 先确认鼠标真的走了，才允许再次隐身
+                    self.show()
+                return
+
+            if not self.isVisible():
+                return
+
+            if not self.rect().contains(self.mapFromGlobal(pos)):
+                self._hover_since = None
+                self._hover_armed = True
+                return
+
+            if not self._hover_armed:
+                return
+
+            now = time.monotonic()
+            if self._hover_since is None:
+                self._hover_since = now
+            elif (now - self._hover_since) * 1000 >= HOVER_HIDE_MS:
+                # 冻结热区：隐藏后靠它判断"鼠标移开了"
+                self._hidden_rect = QRect(
+                    self.mapToGlobal(QPoint(0, 0)), self.size()
+                )
+                self._hover_since = None
+                self._hover_hidden = True
+                self.hide()
+        except Exception as e:
+            # 槽函数抛未捕获异常会让 PyQt6 直接 abort 进程，这里自愈并保证猫能看见
+            if not self._hover_error:
+                self._hover_error = True
+                print(f"[月薪喵] 悬停巡检异常，已自愈：{e!r}",
+                      file=sys.stderr, flush=True)
+            self._hover_since = None
+            self._hover_hidden = False
+            self._hidden_rect = None
+            if not self.isVisible():
+                self.show()
+
+    @staticmethod
+    def _any_mouse_button_down():
+        """系统级判断鼠标键是否正被按住（含在别的程序里按住）。
+
+        QApplication.mouseButtons() 只反映自家窗口收到的消息，
+        在别的应用里按着键时恒为 NoButton，所以直接问系统。
+        """
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+            for vk in (0x01, 0x02, 0x04):  # 左 / 右 / 中键
+                if user32.GetAsyncKeyState(vk) & 0x8000:
+                    return True
+        except Exception:
+            pass
+        return False
+
     # ---- 左键：拎起小猫 ----
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            self._hover_since = None  # 按下的这一刻绝不隐身
             self._dragging = True
             self.set_state(PetState.FOLLOWING)  # 拎起即进入 FOLLOWING
             self._drag_offset = (
@@ -901,7 +997,12 @@ class Cat(QWidget):
         quit_action = QAction("退出", self)
         quit_action.triggered.connect(QApplication.instance().quit)
         menu.addAction(quit_action)
-        menu.exec(event.globalPos())
+        self._menu_open = True
+        try:
+            menu.exec(event.globalPos())
+        finally:
+            self._menu_open = False
+            self._hover_since = None
 
     def _toggle_autostart(self, checked):
         """右键菜单开关：勾选启用 / 取消禁用开机自启动。"""
