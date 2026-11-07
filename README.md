@@ -131,10 +131,10 @@ python build_dance_gif.py
 python demo_skins.py
 ```
 
-开机自启动（Windows，写入当前用户注册表，无需管理员权限）：
+开机自启动（Windows，通过启动文件夹 + VBS 静默启动，无需管理员权限）：
 
 ```bash
-python autostart.py enable     # 启用：开机用 pythonw 静默启动，不弹黑框
+python autostart.py enable     # 启用：登录时自动静默启动，不弹黑框
 python autostart.py disable    # 禁用
 python autostart.py status     # 查询状态
 ```

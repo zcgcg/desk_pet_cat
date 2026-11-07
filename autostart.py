@@ -1,8 +1,11 @@
 """月薪喵 · 开机自启动管理（Windows）
 
-纯标准库实现，无第三方依赖。通过写入当前用户的注册表
-HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run 实现自启动，
-无需管理员权限；使用 pythonw.exe 静默启动 main.py，开机不弹黑框。
+通过「启动文件夹 + VBS 静默启动器」实现开机自启动：
+在用户启动文件夹（Win+R 输入 shell:startup 可打开）放入 SalaryCat.vbs，
+登录时由系统静默执行 pythonw.exe main.py，无控制台窗口。
+
+为什么不用注册表 Run 键：部分安全软件/策略会拦截 HKCU\...\Run 的写入
+（写入返回成功但实际不生效），而启动文件夹是普通文件写入，兼容性最好。
 
 用法：
     python autostart.py enable    启用开机自启动
@@ -13,69 +16,70 @@ HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run 实现自启动，
 效果与命令行一致。
 """
 
+import os
 import sys
 from pathlib import Path
 
-try:
-    import winreg
-except ImportError:  # 非 Windows 环境
-    winreg = None
-
-RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-APP_NAME = "SalaryCat"  # 注册表值名，换名即换注册项
+VBS_NAME = "SalaryCat.vbs"
 
 
-def _entry():
-    """构造 Run 键的值：pythonw.exe（无控制台）+ main.py 绝对路径。"""
+def _pythonw():
+    """当前解释器同目录的 pythonw.exe（无控制台）；找不到则退回 python。"""
     exe = Path(sys.executable)
     pythonw = exe.with_name("pythonw.exe")
-    if not pythonw.exists():
-        pythonw = exe  # 找不到 pythonw 时退回 python（会带控制台窗口）
-    main_py = Path(__file__).resolve().parent / "main.py"
-    return f'"{pythonw}" "{main_py}"'
+    return pythonw if pythonw.exists() else exe
+
+
+def _main_py():
+    return Path(__file__).resolve().parent / "main.py"
+
+
+def _startup_dir():
+    return (
+        Path(os.environ["APPDATA"])
+        / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    )
+
+
+def _vbs_path():
+    return _startup_dir() / VBS_NAME
+
+
+def _vbs_content():
+    # VBS 中 "" 转义为一个引号：Run 收到 "pythonw.exe" "main.py"，窗口模式 0（隐藏）
+    return (
+        'CreateObject("WScript.Shell").Run '
+        f'"""{_pythonw()}"" ""{_main_py()}""", 0, False'
+    )
 
 
 def is_enabled():
-    """当前是否已启用自启动（注册表值存在且路径与当前一致）。"""
-    if winreg is None:
+    """启动文件夹里已有内容匹配当前路径的 SalaryCat.vbs。"""
+    p = _vbs_path()
+    if not p.exists():
         return False
     try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_READ
-        ) as key:
-            value, _ = winreg.QueryValueEx(key, APP_NAME)
-        return value == _entry()
-    except FileNotFoundError:
-        return False
+        return p.read_bytes().decode("mbcs") == _vbs_content()
     except OSError:
         return False
 
 
 def enable():
-    """写入自启动注册表项；成功返回 True。"""
-    if winreg is None:
-        return False
+    """写入启动文件夹 VBS；成功返回 True。"""
     try:
-        with winreg.CreateKeyEx(
-            winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE
-        ) as key:
-            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, _entry())
+        _startup_dir().mkdir(parents=True, exist_ok=True)
+        _vbs_path().write_bytes(_vbs_content().encode("mbcs"))
         return True
     except OSError:
         return False
 
 
 def disable():
-    """删除自启动注册表项；本来就没启用时也算成功。"""
-    if winreg is None:
-        return False
+    """删除启动文件夹 VBS；本来就没有时也算成功。"""
     try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE
-        ) as key:
-            winreg.DeleteValue(key, APP_NAME)
-        return True
-    except FileNotFoundError:
+        p = _vbs_path()
+        if p.exists():
+            p.unlink()
         return True
     except OSError:
         return False
@@ -84,11 +88,11 @@ def disable():
 def main():
     action = sys.argv[1] if len(sys.argv) > 1 else "status"
     if action == "enable":
-        print("启用成功：" + _entry() if enable() else "启用失败。")
+        print("启用成功：" + str(_vbs_path()) if enable() else "启用失败。")
     elif action == "disable":
         print("已禁用。" if disable() else "禁用失败。")
     else:  # status
-        print("已启用：" + _entry() if is_enabled() else "未启用。")
+        print("已启用：" + str(_vbs_path()) if is_enabled() else "未启用。")
 
 
 if __name__ == "__main__":

@@ -60,8 +60,10 @@ python autostart.py disable    # 禁用
 python autostart.py status     # 查询状态
 ```
 
-原理：写入当前用户的注册表 `HKCU\...\Run` 键，无需管理员权限；
-以 `pythonw.exe` 静默启动 `main.py`，开机不弹黑色控制台窗口。
+原理：在你的启动文件夹（`Win+R` 输入 `shell:startup` 可打开）写入一个
+`SalaryCat.vbs` 静默启动器，登录时由系统自动执行 `pythonw.exe main.py`，
+不弹黑色控制台窗口。选用启动文件夹而非注册表 Run 键，是因为部分
+安全软件/策略会拦截 Run 键写入（写入成功但不生效），文件方式兼容性最好。
 
 也可以右键猫咪 → 勾选「开机自启动」直接切换，效果一致。
 程序是单实例的：开机自启后手动再启动只会保留一只猫。

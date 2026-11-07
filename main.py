@@ -912,7 +912,7 @@ class Cat(QWidget):
         ok = autostart.enable() if checked else autostart.disable()
         if not ok:
             QMessageBox.warning(
-                self, "月薪喵", "设置开机自启动失败，请检查注册表权限。"
+                self, "月薪喵", "设置开机自启动失败，请检查启动文件夹权限。"
             )
 
 
