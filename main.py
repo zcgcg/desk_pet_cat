@@ -429,9 +429,11 @@ class Cat(QWidget):
 
     def _build_ui(self):
         # 透明 + 无边框 + 置顶，一气呵成
+        # Tool：Windows 下即 WS_EX_TOOLWINDOW，窗口不进任务栏、也不进 Alt+Tab
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         # 恢复显示时只露出窗口，不抢走用户当前应用的焦点
