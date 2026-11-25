@@ -109,7 +109,7 @@ python autostart.py status     # 查询状态
 | ALERT | CPU 使用率 > 80% | 最高 | 红色滤镜 + 窗口 ±5px 随机震动 | “主公快看！CPU 要炸了喵！” |
 | FOLLOWING | 左键按住猫咪（拎起） | 用户主动触发 | 水平镜像，拎到哪跟到哪 | “哎呀！被抓住了喵！” |
 | WORKING | VS Code 在前台 且 30 秒内有输入 | 中 | 半透明呼吸（80%–100%） | “主公加油，月薪翻倍！” |
-| DANCE | OpenAI 桌面 App（ChatGPT/Codex）在前台 | 次高 | 原样播放 dance 动画 | “主公召唤 Codex，猫咪献舞！” |
+| DANCE | OpenAI 桌面 App（ChatGPT/Codex）或 Antigravity（App / IDE）在前台 | 次高 | 原样播放 dance 动画 | “主公召唤 AI，猫咪摸鱼！” |
 | IDLE | 以上都不满足 | 低（默认） | 原样发呆 | “发呆中...” |
 
 ### 5.2 心跳感知逻辑
@@ -117,10 +117,10 @@ python autostart.py status     # 查询状态
 程序每秒执行一次 `_sense()`，按优先级从高到低判定目标状态：
 
 ```
-CPU > 80%                    → ALERT
-OpenAI 桌面 App（ChatGPT/Codex）前台 → DANCE
-VS Code 前台 + 有近期输入    → WORKING（停手超过 30 秒自动降级 IDLE）
-否则                          → IDLE
+CPU > 80%                                              → ALERT
+OpenAI 桌面 App（ChatGPT/Codex）/ Antigravity（App & IDE）前台 → DANCE
+VS Code 前台 + 有近期输入                               → WORKING（停手超过 30 秒自动降级 IDLE）
+否则                                                    → IDLE
 ```
 
 FOLLOWING 不再由距离感应触发，改为**拖拽事件**驱动：

@@ -3,7 +3,7 @@
 透明、无边框、永远置顶的小猫。
 行为由状态机驱动：PetState(IDLE / WORKING / DANCE / ALERT / FOLLOWING)
 决定当前播放哪套素材与逻辑（阶段三：本地台词气泡 + 终极 Alpha Mask 抠图）。
-每秒心跳感知：CPU>80% → ALERT；Codex 桌面 App 前台 → DANCE；
+每秒心跳感知：CPU>80% → ALERT；Codex / Antigravity（App & IDE）前台 → DANCE；
 DeepSeek Harness 前台 → 按 agent 是否运行细分：
   agent 运行中（网络有 LLM 连接 / 会话文件持续写入）→ WORKING（AI 代劳搬砖）；
   仅进入界面（如输入框打字）→ IDLE（发呆摸鱼）；
@@ -131,7 +131,7 @@ DIALOGUE_LIB = {
         "我是懂打工的猫喵",
     ],
     PetState.DANCE: [
-        "主公召唤 Codex，猫咪摸鱼！",
+        "主公召唤 AI，猫咪摸鱼！",
         "代码写累了？开始摸鱼喵~",
         "Vibe 到位，舞力全开喵！",
         "AI 跳舞时间到，前排围观喵！",
@@ -617,7 +617,7 @@ class Cat(QWidget):
         self._say_current()
 
     def _play_dance(self):
-        """DANCE：主公召唤 Codex 时献舞，原样播放。"""
+        """DANCE：Codex / Antigravity 前台时献舞，原样播放。"""
         self._switch_asset(PetState.DANCE)
         self._say_current()
 
@@ -682,12 +682,13 @@ class Cat(QWidget):
         cpu = self._cpu_percent()
         vscode = self._vscode_active()
         codex = self._codex_active()
+        antigravity = self._antigravity_active()
         dsh = self._dsh_active()
 
         if cpu > CPU_ALERT:
             target = PetState.ALERT          # 优先级最高
-        elif codex:
-            target = PetState.DANCE          # 次高：Codex 前台献舞
+        elif codex or antigravity:
+            target = PetState.DANCE          # 次高：Codex / Antigravity 前台献舞
         elif dsh:
             # DeepSeek Harness 前台：按 agent 是否在干活细分
             target = (PetState.WORKING if self._dsh_agent_running()
@@ -747,6 +748,35 @@ class Cat(QWidget):
         return bool(title) and (
             "codex" in title.lower() or "chatgpt" in title.lower()
         )
+
+    def _antigravity_active(self):
+        """Antigravity 桌面端（Antigravity App / Antigravity IDE）是否在前台。
+
+        以进程名判定：Antigravity.exe / Antigravity IDE.exe 在前台即触发，
+        避免浏览器或编辑器打开含 antigravity 字样的页面/文件时误触发；
+        进程信息拿不到时退化为按标题含 "antigravity" 判断。
+        """
+        pname = self._foreground_process_name()
+        if pname:
+            return pname in (
+                "antigravity.exe",
+                "antigravity",
+                "antigravity ide.exe",
+                "antigravity ide",
+                "antigravity-ide.exe",
+                "antigravity-ide",
+            )
+        title = ""
+        if gw is not None:
+            try:
+                win = gw.getActiveWindow()
+                title = (win.title if win is not None else "") or ""
+            except Exception:
+                try:
+                    title = gw.getActiveWindowTitle() or ""
+                except Exception:
+                    pass
+        return bool(title) and "antigravity" in title.lower()
 
     def _dsh_active(self):
         """DeepSeek Harness（Web GUI / dsh CLI）是否在前台。
